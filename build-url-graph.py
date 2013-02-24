@@ -1,6 +1,9 @@
 import fileinput
 import json
+import urlresolver
 #import interactiongraph
+
+urlresolver.load_resolved_urls()
 
 # we build the graph with only the top N URLs, in terms of tweets/retweets 
 numTopURLs = 100
@@ -13,13 +16,16 @@ class TweetedURL:
 
 
 tweetedurls = {}
-
 numtweets = 0
 
-# remove everything after ?, also trailing /
+# resolve (follow redirects) and remove tracking information following ?, also trailing /
 def clean_url(url):
-  if url.find('?') != -1:
-    url = url[:url.find('?')]
+  url = urlresolver.resolve_url(url)
+  junk = ["?utm_", "?_r=", "?source=", "?i=", "?s=", "?cache", "?xg_source", "?feature=", "&feature=youtu.be"]
+  for j in junk:
+    if url.find(j) != -1:
+      url = url[:url.find(j)]
+      break
   if url[-1:] == '/':
     url = url[:-1]
   return url
@@ -62,7 +68,7 @@ for url1 in topurls:
       weight = len(tweetedurls[url1].users & tweetedurls[url2].users)
       if weight > 0:
         url_graph[(url1,url2)] = weight
-        print("Users " + str(tweetedurls[url1].users & tweetedurls[url2].users) + " all tweeted " + url1 + " and " + url2)
+        #print("Users " + str(tweetedurls[url1].users & tweetedurls[url2].users) + " all tweeted " + url1 + " and " + url2)
 
 
 print("Found " + str(len(url_graph)) + " instances where a top URL tweeted by a pair of users.")
@@ -79,3 +85,6 @@ for (a,b) in url_graph:
   f.write("  edge\n  [\n    source " + a + "\n    target " + b + "\n    weight " + str(url_graph[(a,b)]) + "\n  ]\n")
 
 f.write("]\n")
+
+
+urlresolver.save_resolved_urls()
