@@ -49,7 +49,7 @@ while True:
   logstart,f = logFile(capturename)
   try:
     for tweet in stream:
-      print tweet['text']
+      #print tweet['text']
       f.write(json.dumps(tweet)+"\n")
       if newDay(logstart):
         f.close()
