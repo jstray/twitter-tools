@@ -5,20 +5,20 @@ import tweetstream
 import json
 import argparse
 
-def curDateFilename(count):
+def curDateFilename(capturename, count):
   now = datetime.datetime.now()
-  base = now.strftime("tweets-%Y-%m-%d")
+  base = now.strftime(capturename + "-%Y-%m-%d")
   if count==0:
     return now, base + ".json"
   else:
     return now, base + "-part-" + str(count) + ".json"
 
-def logFile():
+def logFile(capturename):
   count = 0
-  now,fname = curDateFilename(count)
+  now,fname = curDateFilename(capturename, count)
   while os.path.exists(fname):
     count += 1
-    now,fname = curDateFilename(count)
+    now,fname = curDateFilename(capturename, count)
   return now, open(fname, "w")
 
 def newDay(oldNow):
@@ -36,21 +36,26 @@ args = parser.parse_args()
 
 if args.termfile:
   words = [line.strip() for line in open(args.termfile)]
-else
-  words = [term.strip() for word in args.terms.split(',')]  
+  capturename = os.path.basename(args.termfile).split('.')[0]  # filename without path and extension
+else:
+  words = [term.strip() for term in args.terms.split(',')]  
+  capturename = "tweets"
+
+print "Capturing " + str(len(words)) + " words to file " + capturename
 
 stream = tweetstream.FilterStream(args.username, args.password, track=words)
 
 while True:
-  logstart,f = logFile()
+  logstart,f = logFile(capturename)
   try:
     for tweet in stream:
+      print tweet['text']
       f.write(json.dumps(tweet)+"\n")
       if newDay(logstart):
         f.close()
         break
   except tweetstream.ConnectionError, e:
-    f = open('tweet-capture-error.log', 'a')
+    f = open(capturename + '-error.log', 'a')
     tm = strftime("%Y-%m-%d %H:%M:%S", gmtime())
     f.write(tm + " -- " + e.reason +  "\n")
     f.close
