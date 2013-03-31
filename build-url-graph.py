@@ -30,9 +30,33 @@ class TweetedURL:
     self.title = ""
 
 
-# resolve (follow redirects) and remove tracking information following ?, also trailing /
+# If we've seen both http and https versions of the same URL, use just the http
+def canonicalize_https(url):
+
+  if url[:7] == "http://":
+    https_url = "https://" + url[7:]
+    if https_url in tweetedurls:  # urls is http, but we have https in the dict, so replace with http
+      t = tweetedurls[https_url] 
+      del tweetedurls[https_url]
+      tweetedurls[url] = t
+    return url                    # always return http if the input is http
+
+  elif url[:8] == "https://":
+    http_url = "http://" + url[8:]
+    if http_url in tweetedurls:  # urls is https, but http in dict, so return http
+      return http_url
+    else:
+      return url  # we only return https unchanged if we haven't also seen http
+
+  else:
+    return url    # not http, not https, good luck with that. 
+
+
+
+# resolve (follow redirects) and remove tracking information following ?, also trailing /, and canonicalize https vs. http
 def clean_url(url):
   url = urlresolver.resolve_url(url, resolved_cache_only)
+
   junk = ["?utm_", "?_r=", "?source=", "?i=", "?s=", "?cache", "?xg_source", "&feature=youtu.be"]
   for j in junk:
     if url.find(j) != -1:
@@ -40,6 +64,8 @@ def clean_url(url):
       break
   if url[-1:] == '/':
     url = url[:-1]
+
+  url = canonicalize_https(url)
   return url
 
 
@@ -50,8 +76,6 @@ def process_url(line):
 
   for u in t['entities']['urls']:
     url = clean_url(u['expanded_url'])
-    if url == "http://youtube.com/watch":
-      print("Found youtube.url, original text: " + t['text'])
     tu = tweetedurls.get(url, TweetedURL())
     tu.users.add(user) 
     tu.count += 1
@@ -72,7 +96,7 @@ with ThreadPoolExecutor(max_workers=max_pending_resolutions+1) as executor:   # 
 print("Found " + str(len(tweetedurls)) + " distinct URLs in " +  str(numtweets) + " tweets.")
 
 if resolved_cache_only == False:
-  urlresolver.save_resolved_urls(resolved_urls_filename)
+  urlresolver.save_resolved_urls()
 
 
 # take the top N urls, by number of tweets, and retrieve titles
@@ -109,7 +133,8 @@ f.write("graph\n[\n")
 for u in topurls:
   tweetcount = tweetedurls[u].count
   nodesize = math.sqrt(tweetcount)  # take sqrt to help with dynamic range
-  f.write("  node\n  [\n    id " + u + "\n    label \"" + tweetedurls[u].title + "\"\n    size " + str(nodesize) + "\n    count " + str(tweetcount) + "\n  ]\n")
+  title = tweetedurls[u].title.replace('"', "'")  # double qoutes to single, for Gephi's sake
+  f.write("  node\n  [\n    id " + u + "\n    label \"" + title + "\"\n    size " + str(nodesize) + "\n    count " + str(tweetcount) + "\n  ]\n")
 
 for (a,b) in url_graph:
   f.write("  edge\n  [\n    source " + a + "\n    target " + b + "\n    weight " + str(url_graph[(a,b)]) + "\n  ]\n")
